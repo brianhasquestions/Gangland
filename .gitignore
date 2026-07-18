@@ -1,0 +1,21 @@
+# Build output
+bin/
+
+# Save games
+*.sav
+
+# Compiler / linker artifacts anywhere
+*.obj
+*.res
+*.exe
+*.pdb
+*.ilk
+*.map
+
+# Visual Studio cruft
+.vs/
+*.user
+*.suo
+
+# Local tooling
+*.log
