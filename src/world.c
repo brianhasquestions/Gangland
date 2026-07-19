@@ -1385,6 +1385,23 @@ Cleanup:
     return;
 }
 
+// Advances the status cursor after a bounded write. wnsprintfW returns a
+// negative value on truncation; treating that as "buffer now full" keeps the
+// cursor inside the buffer no matter what the format expansion did.
+static void StatusAdvance(WCHAR** cursor, int* remaining, int written)
+{
+    if (0 > written)
+    {
+        written = (0 < *remaining) ? (*remaining - 1) : 0;
+    }
+    *cursor = *cursor + written;
+    *remaining = *remaining - written;
+    if (1 > *remaining)
+    {
+        *remaining = 1;
+    }
+}
+
 void BuildStatusText(App* app)
 {
     GameState* game = NULL;
@@ -1403,43 +1420,35 @@ void BuildStatusText(App* app)
     cursor = buffer;
     remaining = STATUS_BUFFER_CHARS;
     written = wnsprintfW(cursor, remaining, L"%s - %s\r\nDay %d   Location: %s\r\n", game->playerName, (RANK_ERRAND_BOY == game->rank) ? L"Errand Boy" : ((RANK_CAPO == game->rank) ? L"Capo Soto" : L"Don"), game->day, DistrictName(game->location));
-    cursor = cursor + written;
-    remaining = remaining - written;
+    StatusAdvance(&cursor, &remaining, written);
     written = wnsprintfW(cursor, remaining, L"Cash: $%d   Heat: %d%s\r\nHealth: %d/%d   Medpacks: %d\r\nGunplay Lv %d   Business Lv %d\r\nCrew: %d / %d (leadership)\r\n", game->cash, game->heat, (0 != game->copsHostile) ? L" [COPS HOSTILE]" : L"", game->playerHealth, game->playerMaxHealth, game->medpacks, game->gunplayLevel, game->businessLevel, CountCrew(game), LeadershipCap(game));
-    cursor = cursor + written;
-    remaining = remaining - written;
+    StatusAdvance(&cursor, &remaining, written);
     written = wnsprintfW(cursor, remaining, L"Weapon: %s   Ammo: %d\r\nCar: %s\r\n", (0 == game->weaponTier) ? L"Old pistol" : ((1 == game->weaponTier) ? L"Twin pistols" : ((2 == game->weaponTier) ? L"Tommy gun" : L"Custom Tommy gun")), game->ammo, (CAR_NONE == game->carTier) ? L"None (you walk)" : ((CAR_JALOPY == game->carTier) ? L"Rusty jalopy" : ((CAR_SEDAN == game->carTier) ? L"Black sedan" : L"Armored sedan")));
-    cursor = cursor + written;
-    remaining = remaining - written;
+    StatusAdvance(&cursor, &remaining, written);
     if (WIFE_MARRIED == game->wife.status)
     {
         written = wnsprintfW(cursor, remaining, L"Wife: %s%s\r\n", game->wife.name, (0 != game->wifeConfront) ? L" [SHE KNOWS]" : ((SUSPICION_VISIBLE <= game->wifeSuspicion) ? L" [suspicious]" : L""));
-        cursor = cursor + written;
-        remaining = remaining - written;
+        StatusAdvance(&cursor, &remaining, written);
     }
     if (0 != game->mistress)
     {
         written = wnsprintfW(cursor, remaining, L"A mistress waits Downtown ($%d/day)\r\n", MISTRESS_UPKEEP);
-        cursor = cursor + written;
-        remaining = remaining - written;
+        StatusAdvance(&cursor, &remaining, written);
     }
     if (KIDNAP_NOBODY != game->kidnapVictim)
     {
         written = wnsprintfW(cursor, remaining, L"KIDNAPPED: %s ($%d ransom, %d days)\r\n", KidnapVictimName(game), game->kidnapRansom, game->kidnapDaysLeft);
-        cursor = cursor + written;
-        remaining = remaining - written;
+        StatusAdvance(&cursor, &remaining, written);
     }
     if (0 < game->chiefDeadline)
     {
         written = wnsprintfW(cursor, remaining, L"CHIEF WANTS $%d (%d days left)\r\n", CHIEF_DEMAND, game->chiefDeadline);
-        cursor = cursor + written;
-        remaining = remaining - written;
+        StatusAdvance(&cursor, &remaining, written);
     }
     if (0 < game->bountyDays)
     {
         written = wnsprintfW(cursor, remaining, L"BOUNTY ON YOUR HEAD (%d days)\r\n", game->bountyDays);
-        cursor = cursor + written;
-        remaining = remaining - written;
+        StatusAdvance(&cursor, &remaining, written);
     }
     for (rivalIndex = 0; NUM_RIVALS > rivalIndex; rivalIndex++)
     {
@@ -1447,8 +1456,8 @@ void BuildStatusText(App* app)
         {
             continue;
         }
-        cursor = cursor + wnsprintfW(cursor, remaining, L"%s (%s): %s\r\n", game->rivals[rivalIndex].name, DistrictName(game->rivals[rivalIndex].district), (RIVAL_ANGER_WAR <= game->rivals[rivalIndex].anger) ? L"AT WAR" : L"tense");
-        remaining = (int)(STATUS_BUFFER_CHARS - (cursor - buffer));
+        written = wnsprintfW(cursor, remaining, L"%s (%s): %s\r\n", game->rivals[rivalIndex].name, DistrictName(game->rivals[rivalIndex].district), (RIVAL_ANGER_WAR <= game->rivals[rivalIndex].anger) ? L"AT WAR" : L"tense");
+        StatusAdvance(&cursor, &remaining, written);
     }
     wnsprintfW(cursor, remaining, L"\r\nBrothers avenged: %d/3", game->brothersDead[0] + game->brothersDead[1] + game->brothersDead[2]);
     SetWindowTextW(app->windowStatus, buffer);
