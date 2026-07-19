@@ -1,4 +1,8 @@
-#include "gangland.h"
+#include "combat.h"
+#include "util.h"
+#include "main.h"
+#include "world.h"
+#include "sound.h"
 #include <shlwapi.h>
 
 #define MAX_FIGHTERS 24

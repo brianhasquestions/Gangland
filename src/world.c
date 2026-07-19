@@ -1,4 +1,8 @@
-#include "gangland.h"
+#include "world.h"
+#include "util.h"
+#include "main.h"
+#include "combat.h"
+#include "sound.h"
 #include <shlwapi.h>
 
 #define START_CASH 500
@@ -1455,6 +1459,199 @@ Cleanup:
     return;
 }
 
+#define SANITY_MAX_MONEY 100000000
+#define SANITY_MAX_DAY 1000000
+#define SANITY_MAX_LEVEL 100
+#define SANITY_MAX_HP 10000
+#define SANITY_MAX_ACCURACY 200
+#define SANITY_MAX_SMALL 100
+#define SANITY_MAX_SUSPICION 200
+
+static int ClampInt(int value, int low, int high)
+{
+    int result = 0;
+
+    result = value;
+    if (low > result)
+    {
+        result = low;
+    }
+    if (high < result)
+    {
+        result = high;
+    }
+
+    return result;
+}
+
+static void SanitizeName(WCHAR* name)
+{
+    name[NAME_CHARS - 1] = L'\0';
+}
+
+// A save file is untrusted input: it may be corrupt or hand-crafted. Every
+// index that will ever be used to address an array is clamped to its valid
+// range, every flag is forced to 0/1, and every string is terminated, so
+// hostile bytes can produce at worst a strange game, never a bad access.
+static void SanitizeState(GameState* game)
+{
+    int index = 0;
+    Unit* unit = NULL;
+    Business* biz = NULL;
+    Heir* heir = NULL;
+    Rival* rival = NULL;
+    Candidate* candidate = NULL;
+
+    game->day = ClampInt(game->day, 1, SANITY_MAX_DAY);
+    game->missionStage = ClampInt(game->missionStage, 0, 7);
+    game->cash = ClampInt(game->cash, 0, SANITY_MAX_MONEY);
+    game->heat = ClampInt(game->heat, 0, 100);
+    game->rank = ClampInt(game->rank, RANK_ERRAND_BOY, RANK_DON);
+    game->gunplayXp = ClampInt(game->gunplayXp, 0, SANITY_MAX_MONEY);
+    game->gunplayLevel = ClampInt(game->gunplayLevel, 0, SANITY_MAX_LEVEL);
+    game->businessXp = ClampInt(game->businessXp, 0, SANITY_MAX_MONEY);
+    game->businessLevel = ClampInt(game->businessLevel, 0, SANITY_MAX_LEVEL);
+    game->playerMaxHealth = ClampInt(game->playerMaxHealth, 1, SANITY_MAX_HP);
+    game->playerHealth = ClampInt(game->playerHealth, 1, game->playerMaxHealth);
+    game->weaponTier = ClampInt(game->weaponTier, 0, 3);
+    game->medpacks = ClampInt(game->medpacks, 0, SANITY_MAX_SMALL);
+    game->location = ClampInt(game->location, 0, NUM_DISTRICTS - 1);
+    game->carryingCrate = ClampInt(game->carryingCrate, 0, 1);
+    game->churchFound = ClampInt(game->churchFound, 0, 1);
+    game->copsHostile = ClampInt(game->copsHostile, 0, 1);
+    game->chiefDeadline = ClampInt(game->chiefDeadline, 0, SANITY_MAX_SMALL);
+    game->chiefNextDay = ClampInt(game->chiefNextDay, 0, SANITY_MAX_DAY);
+    game->bountyDays = ClampInt(game->bountyDays, 0, SANITY_MAX_SMALL);
+    game->vincenzoAlive = ClampInt(game->vincenzoAlive, 0, 1);
+    game->vincenzoTaken = ClampInt(game->vincenzoTaken, 0, 1);
+    game->romanoKnown = ClampInt(game->romanoKnown, 0, 1);
+    game->angeloKnown = ClampInt(game->angeloKnown, 0, 1);
+    game->sonnyKnown = ClampInt(game->sonnyKnown, 0, 1);
+    game->menuId = MENU_MAIN;
+    game->ctxBusiness = ClampInt(game->ctxBusiness, 0, MAX_BUSINESSES - 1);
+    game->ctxUnit = ClampInt(game->ctxUnit, 0, MAX_CREW - 1);
+    game->favorDistrict = ClampInt(game->favorDistrict, -1, NUM_DISTRICTS - 1);
+    game->favorEnemies = ClampInt(game->favorEnemies, 0, SANITY_MAX_SMALL);
+    game->contractBusiness = ClampInt(game->contractBusiness, -1, MAX_BUSINESSES - 1);
+    game->contractReward = ClampInt(game->contractReward, 0, SANITY_MAX_MONEY);
+    game->gameOver = ClampInt(game->gameOver, 0, 1);
+    game->gameWon = ClampInt(game->gameWon, 0, 1);
+    game->generation = ClampInt(game->generation, 1, SANITY_MAX_LEVEL);
+    game->mistress = ClampInt(game->mistress, 0, 1);
+    game->mistressDays = ClampInt(game->mistressDays, 0, SANITY_MAX_DAY);
+    game->wifeSuspicion = ClampInt(game->wifeSuspicion, 0, SANITY_MAX_SUSPICION);
+    game->wifeConfront = ClampInt(game->wifeConfront, 0, 1);
+    game->inLawBusiness = ClampInt(game->inLawBusiness, -1, MAX_BUSINESSES - 1);
+    game->inLawTribute = ClampInt(game->inLawTribute, 0, 1);
+    game->kidnapVictim = ClampInt(game->kidnapVictim, KIDNAP_NOBODY, KIDNAP_WIFE);
+    game->kidnapRansom = ClampInt(game->kidnapRansom, 0, SANITY_MAX_MONEY);
+    game->kidnapDaysLeft = ClampInt(game->kidnapDaysLeft, 0, SANITY_MAX_SMALL);
+    game->kidnapDistrict = ClampInt(game->kidnapDistrict, 0, NUM_DISTRICTS - 1);
+    game->ammo = ClampInt(game->ammo, 0, SANITY_MAX_HP);
+    game->carTier = ClampInt(game->carTier, CAR_NONE, CAR_ARMORED);
+    game->soundOn = ClampInt(game->soundOn, 0, 1);
+    game->courtedDay = ClampInt(game->courtedDay, 0, SANITY_MAX_DAY);
+    game->mapCollapsed = ClampInt(game->mapCollapsed, 0, 1);
+    game->tutoredDay = ClampInt(game->tutoredDay, 0, SANITY_MAX_DAY);
+    game->vincenzoFound = ClampInt(game->vincenzoFound, 0, 1);
+    game->vincenzoRescued = ClampInt(game->vincenzoRescued, 0, 1);
+    game->statKills = ClampInt(game->statKills, 0, SANITY_MAX_MONEY);
+    game->statMenLost = ClampInt(game->statMenLost, 0, SANITY_MAX_MONEY);
+    game->statFightsWon = ClampInt(game->statFightsWon, 0, SANITY_MAX_MONEY);
+    game->statFightsLost = ClampInt(game->statFightsLost, 0, SANITY_MAX_MONEY);
+    game->statBizSeized = ClampInt(game->statBizSeized, 0, SANITY_MAX_MONEY);
+    game->statCaposKilled = ClampInt(game->statCaposKilled, 0, SANITY_MAX_MONEY);
+    game->statRansomsPaid = ClampInt(game->statRansomsPaid, 0, SANITY_MAX_MONEY);
+    SanitizeName(game->playerName);
+    for (index = 0; 3 > index; index++)
+    {
+        game->brothersDead[index] = ClampInt(game->brothersDead[index], 0, 1);
+    }
+    for (index = 0; NUM_DISTRICTS > index; index++)
+    {
+        game->policePresence[index] = ClampInt(game->policePresence[index], 0, 5);
+        game->intimidation[index] = ClampInt(game->intimidation[index], 0, SANITY_MAX_SMALL);
+        game->mapPing[index] = ClampInt(game->mapPing[index], PING_NONE, PING_FAMILY);
+        game->mapPingDay[index] = ClampInt(game->mapPingDay[index], 0, SANITY_MAX_DAY);
+    }
+    game->districtEvent.active = ClampInt(game->districtEvent.active, 0, 1);
+    game->districtEvent.district = ClampInt(game->districtEvent.district, 0, NUM_DISTRICTS - 1);
+    game->districtEvent.daysLeft = ClampInt(game->districtEvent.daysLeft, 0, SANITY_MAX_SMALL);
+    for (index = 0; NUM_RIVALS > index; index++)
+    {
+        rival = &game->rivals[index];
+        rival->alive = ClampInt(rival->alive, 0, 1);
+        rival->anger = ClampInt(rival->anger, 0, 100);
+        rival->strength = ClampInt(rival->strength, 0, SANITY_MAX_ACCURACY);
+        rival->district = ClampInt(rival->district, 0, NUM_DISTRICTS - 1);
+        rival->hideoutHoodlums = ClampInt(rival->hideoutHoodlums, 0, SANITY_MAX_SMALL);
+        rival->hideoutSoldiers = ClampInt(rival->hideoutSoldiers, 0, SANITY_MAX_SMALL);
+        rival->hideoutScouted = ClampInt(rival->hideoutScouted, 0, 1);
+        rival->hideoutDownDays = ClampInt(rival->hideoutDownDays, 0, SANITY_MAX_SMALL);
+        SanitizeName(rival->name);
+    }
+    memset(&game->pending, 0, sizeof(PendingCombat));
+    game->phone.active = ClampInt(game->phone.active, 0, 1);
+    game->phone.kind = ClampInt(game->phone.kind, PHONE_NONE, PHONE_TIP);
+    game->phone.unitType = ClampInt(game->phone.unitType, UNIT_BOUNCER, UNIT_BOMBER);
+    game->phone.price = ClampInt(game->phone.price, 0, SANITY_MAX_MONEY);
+    game->phone.reward = ClampInt(game->phone.reward, 0, SANITY_MAX_MONEY);
+    game->phone.targetBusiness = ClampInt(game->phone.targetBusiness, 0, MAX_BUSINESSES - 1);
+    for (index = 0; MAX_CANDIDATES > index; index++)
+    {
+        candidate = &game->candidates[index];
+        candidate->active = ClampInt(candidate->active, 0, 1);
+        candidate->athletic = ClampInt(candidate->athletic, 1, 5);
+        candidate->clever = ClampInt(candidate->clever, 1, 5);
+        candidate->charm = ClampInt(candidate->charm, 1, 5);
+        candidate->dowry = ClampInt(candidate->dowry, 0, SANITY_MAX_MONEY);
+        candidate->wooed = ClampInt(candidate->wooed, 0, candidate->dowry);
+        SanitizeName(candidate->name);
+    }
+    game->wife.status = ClampInt(game->wife.status, WIFE_NONE, WIFE_LEFT);
+    game->wife.athletic = ClampInt(game->wife.athletic, 0, 5);
+    game->wife.clever = ClampInt(game->wife.clever, 0, 5);
+    game->wife.charm = ClampInt(game->wife.charm, 0, 5);
+    game->wife.gestationDays = ClampInt(game->wife.gestationDays, 0, SANITY_MAX_SMALL);
+    SanitizeName(game->wife.name);
+    for (index = 0; MAX_HEIRS > index; index++)
+    {
+        heir = &game->heirs[index];
+        heir->exists = ClampInt(heir->exists, 0, 1);
+        heir->type = ClampInt(heir->type, HEIR_ENFORCER, HEIR_SEDUCTRESS);
+        heir->quality = ClampInt(heir->quality, 0, SANITY_MAX_LEVEL);
+        heir->placement = ClampInt(heir->placement, PLACE_HOME, PLACE_COURTHOUSE);
+        heir->placedBusiness = ClampInt(heir->placedBusiness, -1, MAX_BUSINESSES - 1);
+        SanitizeName(heir->name);
+    }
+    for (index = 0; MAX_CREW > index; index++)
+    {
+        unit = &game->crew[index];
+        unit->type = ClampInt(unit->type, UNIT_NONE, NUM_UNIT_TYPES - 1);
+        unit->alive = ClampInt(unit->alive, 0, 1);
+        unit->level = ClampInt(unit->level, 1, SANITY_MAX_LEVEL);
+        unit->xp = ClampInt(unit->xp, 0, SANITY_MAX_MONEY);
+        unit->maxHealth = ClampInt(unit->maxHealth, 1, SANITY_MAX_HP);
+        unit->health = ClampInt(unit->health, 0, unit->maxHealth);
+        unit->accuracy = ClampInt(unit->accuracy, 0, SANITY_MAX_ACCURACY);
+        unit->assignment = ClampInt(unit->assignment, ASSIGN_SQUAD, ASSIGN_CORNER);
+        unit->assignedBusiness = ClampInt(unit->assignedBusiness, -1, MAX_BUSINESSES - 1);
+        unit->armed = ClampInt(unit->armed, 0, 1);
+        SanitizeName(unit->name);
+    }
+    for (index = 0; MAX_BUSINESSES > index; index++)
+    {
+        biz = &game->businesses[index];
+        biz->type = ClampInt(biz->type, BIZ_AMMO, BIZ_PHOTO);
+        biz->district = ClampInt(biz->district, 0, NUM_DISTRICTS - 1);
+        biz->status = ClampInt(biz->status, BIZ_INDEPENDENT, BIZ_DESTROYED);
+        biz->baseIncome = ClampInt(biz->baseIncome, 0, SANITY_MAX_HP);
+        biz->managerAlive = ClampInt(biz->managerAlive, 0, 1);
+        biz->hasLawyer = ClampInt(biz->hasLawyer, 0, 1);
+        SanitizeName(biz->name);
+    }
+}
+
 static void BuildSavePath(WCHAR* path, int slot)
 {
     if (AUTOSAVE_SLOT == slot)
@@ -1497,6 +1694,7 @@ int PeekSave(int slot, GameState* peek)
     {
         goto Cleanup;
     }
+    SanitizeState(peek);
     valid = 1;
 
 Cleanup:
@@ -1596,9 +1794,8 @@ void LoadGame(App* app, int slot)
         UiLog(app, L"The save file is damaged.");
         goto Cleanup;
     }
+    SanitizeState(loaded);
     memcpy(app->game, loaded, sizeof(GameState));
-    app->game->menuId = MENU_MAIN;
-    app->game->pending.active = 0;
     UiLog(app, L"");
     UiLogFmt(app, L"--- Save loaded. Day %d, %s. The story continues. ---", app->game->day, DistrictName(app->game->location));
 

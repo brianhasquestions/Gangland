@@ -70,7 +70,14 @@
     <ClCompile Include="src\world.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\actions.h" />
+    <ClInclude Include="src\combat.h" />
     <ClInclude Include="src\gangland.h" />
+    <ClInclude Include="src\main.h" />
+    <ClInclude Include="src\menu.h" />
+    <ClInclude Include="src\sound.h" />
+    <ClInclude Include="src\util.h" />
+    <ClInclude Include="src\world.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="res\gangland.rc" />

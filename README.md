@@ -59,11 +59,11 @@ Run `bin\gangland.exe`. The window is styled after the era — pinstripe-dark, g
 | File | Contents |
 | --- | --- |
 | `Gangland.sln` / `Gangland.vcxproj` | Visual Studio solution (Debug and Release, x64) |
-| `src/gangland.h` | Types, constants, cross-module prototypes |
+| `src/gangland.h` | Shared types and constants (each module's API lives in its matching `.h`) |
 | `src/entry.c` | The no-CRT entry point (`WinMainCRTStartup`), nothing else |
 | `src/util.c` | Heap helpers, RNG, no-CRT `memset`/`memcpy` |
 | `src/main.c` | Window, controls, map/family painting, log/choice plumbing |
-| `src/world.c` | Game state, data tables, day cycle, events, save/load |
+| `src/world.c` | Game state, data tables, day cycle, events, save/load (loads are sanitized: every index clamped, every string terminated) |
 | `src/menu.c` | Choice-list construction for every screen |
 | `src/actions.c` | Handlers for every player action |
 | `src/combat.c` | Battle engine, raids, mission outcomes, succession |

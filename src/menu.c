@@ -1,4 +1,7 @@
-#include "gangland.h"
+#include "menu.h"
+#include "util.h"
+#include "main.h"
+#include "world.h"
 #include <shlwapi.h>
 #include <stdarg.h>
 

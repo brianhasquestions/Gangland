@@ -1,4 +1,5 @@
-#include "gangland.h"
+#include "sound.h"
+#include "util.h"
 #include <mmsystem.h>
 
 #define SAMPLE_RATE 11025

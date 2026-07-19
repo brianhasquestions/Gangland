@@ -1,4 +1,4 @@
-#include "gangland.h"
+#include "main.h"
 
 void WinMainCRTStartup(void)
 {

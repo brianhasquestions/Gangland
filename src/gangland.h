@@ -1,20 +1,19 @@
-// gangland.h - the single shared header for Gangland (Text Edition).
+// gangland.h - shared types and constants for Gangland (Text Edition).
 //
-// The project deliberately uses one header: the coding standard forbids
-// mutable globals, so every module operates on the two structs defined
-// here (GameState for the world, App for the window), and the save
-// system writes GameState to disk as raw bytes - its full layout must
-// therefore be visible to every translation unit anyway.
+// The coding standard forbids mutable globals, so every module operates on
+// the two structs defined here: GameState (the world, saved to disk as raw
+// bytes - loads are sanitized before the bytes are trusted) and App (the
+// window and other runtime-only resources). Each module's function API
+// lives in its own header:
 //
-// Module map (each .c file includes only this header):
-//   entry.c   - the no-CRT entry point; calls RunApp and exits
-//   util.c    - heap helpers, RNG, bounded string copy, memset/memcpy
-//   main.c    - window, controls, painting (map, family strip), RunApp
-//   world.c   - game-state lifecycle: new game, day cycle, save/load
-//   menu.c    - builds the choice list for whichever menu is active
-//   actions.c - executes the choice the player picked
-//   combat.c  - the battle engine, raids, and fight outcomes
-//   sound.c   - procedural WAV synthesis and playback
+//   entry.c   - the no-CRT entry point; calls RunApp and exits (no header)
+//   util.h    - heap helpers, RNG, bounded string copy, memset/memcpy
+//   main.h    - window, controls, painting (map, family strip), RunApp
+//   world.h   - game-state lifecycle: new game, day cycle, save/load
+//   menu.h    - builds the choice list for whichever menu is active
+//   actions.h - executes the choice the player picked
+//   combat.h  - the battle engine, raids, and fight outcomes
+//   sound.h   - procedural WAV synthesis and playback
 //
 // Build rules: pure C, Win32 API only, no C runtime (/NODEFAULTLIB),
 // /W4 clean, optimized for size. Buffers are heap-allocated, functions
@@ -577,73 +576,5 @@ typedef struct App
     WCHAR* formatBuffer;           // shared scratch for UiLogFmt/AddChoiceFmt
     GameState* game;
 } App;
-
-// ---------------------------------------------------------------------------
-// util.c - allocation, randomness, bounded copies.
-// ---------------------------------------------------------------------------
-
-void* AllocZeroed(SIZE_T bytes);
-void FreeMemory(void* memory);
-int RandomRange(GameState* game, int span);            // 0 .. span-1
-int RandomBetween(GameState* game, int low, int high); // inclusive
-void CopyText(WCHAR* dest, const WCHAR* source, int destChars);
-
-// ---------------------------------------------------------------------------
-// main.c - the window and everything drawn in it.
-// ---------------------------------------------------------------------------
-
-void UiLog(App* app, const WCHAR* text);           // append a line to the log
-void UiLogFmt(App* app, const WCHAR* format, ...); // printf-style append
-void RefreshUi(App* app);                          // rebuild status + choices
-void AddChoice(App* app, const WCHAR* label, int packedAction);
-
-// ---------------------------------------------------------------------------
-// world.c - game-state lifecycle, the day cycle, and persistence.
-// ---------------------------------------------------------------------------
-
-void NewGame(App* app);
-void EndDay(App* app);                             // income, wages, night events
-int PeekSave(int slot, GameState* peek);           // read a save without loading
-void RollHideout(GameState* game, int rivalIndex); // (re)populate a hideout
-void AddHeat(App* app, int amount);                // scaled by local police
-void GainBusinessXp(App* app, int amount);
-void GainGunplayXp(App* app, int amount);
-void BuildStatusText(App* app);
-void SaveGame(App* app, int slot, int silent);
-void LoadGame(App* app, int slot);
-const WCHAR* DistrictName(int district);
-const UnitSpec* GetUnitSpec(int type);
-int CountCrew(GameState* game);
-int LeadershipCap(GameState* game);                // how many you can lead
-int ControlsBusinessType(GameState* game, int type);
-void RecruitUnit(App* app, int type, int silent);
-const WCHAR* KidnapVictimName(GameState* game);
-void KidnapVictimDies(App* app);
-void TagMap(App* app, int district, int kind);     // stamp a map ping
-Rival* RivalInDistrict(GameState* game, int district);
-void RaiseRivalAnger(App* app, int district, int amount);
-int RunApp(void);                                  // defined in main.c; called by entry.c
-
-// ---------------------------------------------------------------------------
-// menu.c / actions.c - the choice list and what picking one does.
-// ---------------------------------------------------------------------------
-
-void BuildChoices(App* app);
-void HandleAction(App* app, int packedAction);
-
-// ---------------------------------------------------------------------------
-// combat.c - offensive fights (via the approach menu) and defensive raids.
-// ---------------------------------------------------------------------------
-
-void QueueCombat(App* app, const WCHAR* label);    // pending -> approach menu
-void ResolveCombat(App* app, int approach);
-void ResolveRaid(App* app, int kind);
-
-// ---------------------------------------------------------------------------
-// sound.c - integer-math WAV synthesis, built once at startup.
-// ---------------------------------------------------------------------------
-
-void SoundBuild(App* app);
-void SoundPlay(App* app, int kind);
 
 #endif

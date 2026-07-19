@@ -1,4 +1,9 @@
-#include "gangland.h"
+#include "main.h"
+#include "util.h"
+#include "world.h"
+#include "menu.h"
+#include "actions.h"
+#include "sound.h"
 #include <shlwapi.h>
 #include <dwmapi.h>
 #include <uxtheme.h>

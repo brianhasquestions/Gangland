@@ -1,4 +1,9 @@
-#include "gangland.h"
+#include "actions.h"
+#include "util.h"
+#include "main.h"
+#include "world.h"
+#include "combat.h"
+#include "sound.h"
 
 #define CHIEF_DEMAND 3000
 #define NEWSMAN_FEE 20
